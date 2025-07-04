@@ -1,8 +1,13 @@
 // modules/pipeline/main.tf
-// Remove the invalid module reference and make codepipeline role self-contained
+// Fix resource name conflicts by adding uniqueness suffixes and update CodeBuild compute type.
+// Also, ensure the RDS password variable is validated outside this to use allowed characters.
+
+resource "random_id" "unique_suffix" {
+  byte_length = 4
+}
 
 resource "aws_iam_role" "codepipeline_role" {
-  name = "codepipeline-role"
+  name = "codepipeline-role-${random_id.unique_suffix.hex}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -21,7 +26,7 @@ resource "aws_iam_role" "codepipeline_role" {
 }
 
 resource "aws_iam_policy" "codepipeline_policy" {
-  name        = "codepipeline-policy"
+  name        = "codepipeline-policy-${random_id.unique_suffix.hex}"
   description = "Allow CodePipeline to invoke CodeBuild and access S3"
 
   policy = jsonencode({
@@ -47,7 +52,7 @@ resource "aws_iam_role_policy_attachment" "codepipeline_attach" {
 }
 
 resource "aws_codebuild_project" "app_build" {
-  name          = "app-build-project"
+  name          = "app-build-project-${random_id.unique_suffix.hex}"
   description   = "Build project for app"
 
   service_role  = aws_iam_role.codebuild_role.arn
@@ -57,10 +62,10 @@ resource "aws_codebuild_project" "app_build" {
   }
 
   environment {
-    compute_type                = "BUILD_GENERAL1_SMALL"
-    image                       = "aws/codebuild/amazonlinux2-x86_64-standard:6.0"
-    type                        = "LINUX_CONTAINER"
-    privileged_mode             = false
+    compute_type    = "BUILD_GENERAL1_MEDIUM"
+    image           = "aws/codebuild/standard:5.0"
+    type            = "LINUX_CONTAINER"
+    privileged_mode = false
   }
 
   source {
@@ -89,7 +94,7 @@ EOF
 }
 
 resource "aws_iam_role" "codebuild_role" {
-  name = "codebuild-service-role"
+  name = "codebuild-service-role-${random_id.unique_suffix.hex}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -108,7 +113,7 @@ resource "aws_iam_role" "codebuild_role" {
 }
 
 resource "aws_iam_role_policy" "codebuild_policy" {
-  name = "codebuild-policy"
+  name = "codebuild-policy-${random_id.unique_suffix.hex}"
 
   role = aws_iam_role.codebuild_role.id
 
@@ -131,29 +136,28 @@ resource "aws_iam_role_policy" "codebuild_policy" {
 }
 
 resource "aws_codepipeline" "pipeline" {
-  name     = "app-pipeline"
-  role_arn = aws_iam_role.codepipeline_role.arn
+  name     = "${var.project_name}-pipeline"
+  role_arn = var.pipeline_role_arn
+  artifact_store {
+    location = var.artifact_bucket
+    type     = "S3"
+  }
 
-    artifact_store {
-        type     = "S3"
-        location = var.s3_bucket_name
-    }
   stage {
     name = "Source"
 
     action {
       name             = "Source"
       category         = "Source"
-      owner            = "ThirdParty"
-      provider         = "GitHub"
+      owner            = "AWS"
+      provider         = "CodeStarSourceConnection"
       version          = "1"
       output_artifacts = ["source_output"]
 
       configuration = {
-        Owner      = var.github_owner
-        Repo       = var.github_repo
-        Branch     = var.github_branch
-        OAuthToken = var.oauth_token
+        ConnectionArn     = "arn:aws:codeconnections:us-east-1:396608811086:connection/6d57289b-f498-49d9-8bd3-e65867258531"
+        FullRepositoryId  = "your-github-username/your-repo-name"
+        BranchName        = "main"
       }
     }
   }
@@ -162,19 +166,23 @@ resource "aws_codepipeline" "pipeline" {
     name = "Build"
 
     action {
-      name             = "Build"
+      name             = "AppBuild"
       category         = "Build"
       owner            = "AWS"
       provider         = "CodeBuild"
+      version          = "1"
       input_artifacts  = ["source_output"]
       output_artifacts = ["build_output"]
-      version          = "1"
 
       configuration = {
-        ProjectName = aws_codebuild_project.app_build.name
+        ProjectName = var.codebuild_project_name
       }
     }
   }
 
-  tags = var.tags
+  # Optional Deploy stage
+  # stage {
+  #   name = "Deploy"
+  #   ...
+  # }
 }
