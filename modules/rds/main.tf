@@ -1,7 +1,4 @@
-// modules/rds/main.tf
-// Note: The invalid password issue must be fixed in input variables or terraform.tfvars.
-// The password must exclude '/', '@', '"', and spaces.
-// Example variable declaration enforcing regex:
+
 
 variable "db_password" {
   description = "RDS master user password"
