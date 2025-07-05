@@ -1,8 +1,8 @@
  Architecture Overview
 
-- VPC** with public and private subnets across 2 availability zones
+- VPC with public and private subnets across 2 availability zones
 - Internet Gateway for public subnet internet outbound access
-- Application Load Balancer** (ALB) public-facing with security groups
+- Application Load Balancer (ALB) public-facing with security groups
 - EC2 instances running in private subnets behind ALB
 - RDS MySQL multi-AZ database in private subnets
 - S3 Bucket for app data or pipeline artifacts
