@@ -1,6 +1,3 @@
-// modules/pipeline/main.tf
-// Fix resource name conflicts by adding uniqueness suffixes and update CodeBuild compute type.
-// Also, ensure the RDS password variable is validated outside this to use allowed characters.
 
 resource "random_id" "unique_suffix" {
   byte_length = 4
